@@ -1,0 +1,11 @@
+# train and val datasets (image directory or *.txt file with image paths)
+train: ../oms_detector_210225/train.txt  # 347263 images
+val: ../oms_detector_210225/test.txt  # 48936 images
+test: ../oms_detector_210225/test.txt  # 48936 images
+
+# number of classes
+nc: 19
+
+# class names
+names: ['SHOES', 'JEWELRIES', 'HATS', 'OUTWEARS', 'PANTS', 'SKIRTS', 'SWIMWEARS', 'TOPS', 'WHOLEBODIES', 'BAGS',
+     'BELTS', 'GLASSES', 'GLOVES', 'HAIR_ACCESSORIES', 'KEY_RING', 'SCARF/MUFFLER','SOCKS', 'TIE', 'WATCHES']
