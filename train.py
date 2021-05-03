@@ -97,12 +97,19 @@ def train(hyp, opt, device, tb_writer=None):
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     lf = lambda x: (((1 + math.cos(x * math.pi / epochs)) / 2) ** 1.0) * 0.8 + 0.2  # cosine
     if opt.lr_scheduler in ['OneCycle', 'onecycle', 'one_cycle']:
+        print("lr_scheduler: OneCycle ~~~")
         scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
     elif opt.lr_scheduler in ['CosineAnnealing', 'cosine_annealing', 'CosAnnealing']:
+        print("lr_scheduler: CosineAnnealing ~~~")
         scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=0)
     elif opt.lr_scheduler in ['Plateau', 'plateau', 'ReduceLROnPlateau']:
+        print("lr_scheduler: ReduceLROnPlateau ~~~")
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', threshold_mode='abs', factor=0.5, patience=3,
                                                    verbose=True)
+    elif opt.lr_scheduler in ['triangular2']:
+        print("lr_scheduler: CyclicLR (traingular2) ~~~")
+        scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=0.000001, max_lr=0.01,step_size_up=5,mode="triangular2",
+                                          verbose=True)
     else:
         print(' please choose lr_scheduler among : Plateau | OneCycle | CosineAnnealing')
         print(' lr_scheduler is default = Plateau')
@@ -361,7 +368,7 @@ def train(hyp, opt, device, tb_writer=None):
                 del ckpt
 
         # Scheduler
-        plateau = True
+        plateau = opt.lr_scheduler in ['Plateau', 'plateau', 'ReduceLROnPlateau']
         if plateau:
             val_map50 = results[2]
             scheduler.step(val_map50)
