@@ -347,7 +347,7 @@ def bbox_iou(box1, box2, x1y1x2y2=True, GIoU=False, DIoU=False, CIoU=False):
             if DIoU:
                 return iou - rho2 / c2  # DIoU
             elif CIoU:  # https://github.com/Zzh-tju/DIoU-SSD-pytorch/blob/master/utils/box/box_utils.py#L47
-                v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+                v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / (h2 + 1e-16)) - torch.atan(w1 / (h1 + 1e-16)), 2)
                 with torch.no_grad():
                     alpha = v / (1 - iou + v + 1e-16)
                 return iou - (rho2 / c2 + v * alpha)  # CIoU
@@ -521,6 +521,7 @@ def build_targets(p, targets, model):
 
     for i in range(det.nl):
         anchors = det.anchors[i]
+        anchors = anchors.to(device='cuda')
         gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain
 
         # Match targets to anchors
@@ -1109,7 +1110,7 @@ def increment_dir(dir, comment=''):
     dir = str(Path(dir))  # os-agnostic
     d = sorted(glob.glob(dir + '*'))  # directories
     if len(d):
-        n = max([int(x[len(dir):x.find('_') if '_' in x else None]) for x in d]) + 1  # increment
+        n = max([int(x[len(dir):x.find('_', len(dir)) if '_' in x else None]) for x in d]) + 1  # increment
     return dir + str(n) + ('_' + comment if comment else '')
 
 
