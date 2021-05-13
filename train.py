@@ -100,7 +100,25 @@ def train(hyp, opt, device, tb_writer=None):
     # Scheduler https://arxiv.org/pdf/1812.01187.pdf
     # https://pytorch.org/docs/stable/_modules/torch/optim/lr_scheduler.html#OneCycleLR
     lf = lambda x: (((1 + math.cos(x * math.pi / epochs)) / 2) ** 1.0) * 0.8 + 0.2  # cosine
-    scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    if opt.lr_scheduler in ['OneCycle', 'onecycle', 'one_cycle']:
+        print("lr_scheduler: OneCycle")
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
+    elif opt.lr_scheduler in ['CosineAnnealing', 'cosine_annealing', 'CosAnnealing']:
+        print("lr_scheduler: CosineAnnealing")
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=20, eta_min=0)
+    elif opt.lr_scheduler in ['Plateau', 'plateau', 'ReduceLROnPlateau']:
+        print("lr_scheduler: ReduceLROnPlateau")
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', threshold_mode='abs', factor=0.5, patience=3,
+                                                   verbose=True)
+    elif opt.lr_scheduler in ['triangular2']:
+        print("lr_scheduler: CyclicLR (traingular2)")
+        scheduler = lr_scheduler.CyclicLR(optimizer, base_lr=0.000001, max_lr=0.01, step_size_up=5, mode="triangular2",
+                                          verbose=True)
+    else:
+        print(' please choose lr_scheduler among : Plateau | OneCycle | CosineAnnealing')
+        print(' lr_scheduler is default = Plateau')
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', threshold_mode='abs', factor=0.5, patience=3,
+                                                   verbose=True)
     # plot_lr_scheduler(optimizer, scheduler, epochs)
 
     # Resume
@@ -238,6 +256,8 @@ def train(hyp, opt, device, tb_writer=None):
                 accumulate = max(1, np.interp(ni, xi, [1, nbs / total_batch_size]).round())
                 for j, x in enumerate(optimizer.param_groups):
                     # bias lr falls from 0.1 to lr0, all other lrs rise from 0.0 to lr0
+                    if 'initial_lr' not in x.keys():
+                        x['initial_lr'] = x['lr']
                     x['lr'] = np.interp(ni, xi, [0.1 if j == 2 else 0.0, x['initial_lr'] * lf(epoch)])
                     if 'momentum' in x:
                         x['momentum'] = np.interp(ni, xi, [0.9, hyp['momentum']])
@@ -295,7 +315,7 @@ def train(hyp, opt, device, tb_writer=None):
             # end batch ------------------------------------------------------------------------------------------------
 
         # Scheduler
-        scheduler.step()
+        # scheduler.step()
 
         # DDP process 0 or single-GPU
         if rank in [-1, 0]:
@@ -350,6 +370,13 @@ def train(hyp, opt, device, tb_writer=None):
                 if best_fitness == fi:
                     torch.save(ckpt, best)
                 del ckpt
+        # Scheduler
+        plateau = opt.lr_scheduler in ['Plateau', 'plateau', 'ReduceLROnPlateau']
+        if plateau:
+            val_map50 = results[2]
+            scheduler.step(val_map50)
+        else:
+            scheduler.step()
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training
 
@@ -399,11 +426,13 @@ if __name__ == '__main__':
     parser.add_argument('--sync-bn', action='store_true', help='use SyncBatchNorm, only available in DDP mode')
     parser.add_argument('--local_rank', type=int, default=-1, help='DDP parameter, do not modify')
     parser.add_argument('--logdir', type=str, default='runs/', help='logging directory')
+    parser.add_argument('--lr-scheduler', type=str, default='OneCycle',
+                        help='choose learning rate scheduler: Plateau | OneCycle | CosineAnnealing')
     opt = parser.parse_args()
 
     # Resume
     if opt.resume:
-        last = get_latest_run() if opt.resume == 'get_last' else opt.resume  # resume from most recent run
+        last = get_latest_run(opt.logdir) if opt.resume == 'get_last' else opt.resume  # resume from most recent run
         if last and not opt.weights:
             print(f'Resuming training from {last}')
         opt.weights = last if opt.resume and not opt.weights else opt.weights
